@@ -1,112 +1,134 @@
 # AI Web App Generator
 
-> A multi-agent AI system that transforms natural-language application requirements into structured engineering plans and generates the corresponding project files using tool-using LLM agents.
+> A multi-agent AI system that transforms natural-language application requirements into structured engineering plans and generates web application files using tool-using LLM agents.
 
 ## Overview
 
-The AI Web App Generator uses a multi-agent workflow to convert a user's natural-language requirement into an implementation-ready web application.
+AI Web App Generator is an agentic software development system built with Python, LangGraph, LangChain, Groq, and Pydantic.
 
-Instead of asking a single LLM to generate an entire application in one step, the system separates the software-development process into specialized stages:
+Instead of asking a single LLM to generate an entire application in one step, the system separates the software development process into specialized agents:
 
 ```text
 User Requirement
        │
        ▼
-┌──────────────┐
-│   Planner    │
-│              │
-│ Requirements │
-│ → Structured │
-│     Plan     │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│  Architect   │
-│              │
-│ Plan →       │
-│ Implementation│
-│    Tasks     │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│    Coder     │
-│              │
-│ Tool-using   │
-│ Agent        │
-└──────┬───────┘
-       │
-       ▼
- Generated Project
+┌─────────────────┐
+│  Planner Agent  │
+│                 │
+│ Requirements →  │
+│ Structured Plan │
+└────────┬────────┘
+         │
+         ▼
+┌───────────────────┐
+│ Architect Agent   │
+│                   │
+│ Plan → Technical  │
+│ Implementation    │
+└─────────┬─────────┘
+          │
+          ▼
+┌───────────────────┐
+│   Coder Agent     │
+│                   │
+│ Tool-using agent  │
+│ generates files   │
+└─────────┬─────────┘
+          │
+          ▼
+   Generated Project
 ```
 
 ## Key Features
 
 * Multi-agent software development workflow
 * Planner → Architect → Coder architecture
-* LangGraph-based stateful orchestration
+* LangGraph-based stateful agent orchestration
 * Structured LLM outputs using Pydantic
-* Tool-using coding agent
-* File creation and modification through dedicated tools
-* Safe project-path handling
-* Iterative implementation of development tasks
-* Example generated applications for testing the workflow
+* Tool-based file creation and modification
+* Safe project-path handling for generated files
+* Iterative code generation
+* Pre-generated example applications
+* Modular prompts, state models, graph logic, and tools
 
-## Architecture
-
-The system is organized into three primary agents.
+## How It Works
 
 ### 1. Planner Agent
 
 The Planner converts the user's natural-language request into a structured project plan.
 
-It identifies:
+The plan identifies:
 
-* Application requirements
-* Features
+* Application purpose
+* Required features
 * Technology stack
 * Project structure
-* Required implementation components
-
-The output is validated using a Pydantic schema.
+* Files required for implementation
 
 ### 2. Architect Agent
 
-The Architect takes the structured project plan and converts it into an ordered implementation plan.
+The Architect takes the project plan and decomposes it into implementation tasks.
 
-Each implementation task contains information such as:
-
-* File path
-* Task description
-* Implementation requirements
-* Execution order
-
-This separates high-level planning from actual code generation.
+Each task describes what needs to be implemented and which files are involved.
 
 ### 3. Coder Agent
 
-The Coder is a tool-using agent responsible for implementing the architecture.
+The Coder is a tool-using ReAct agent responsible for implementing the planned tasks.
 
-It can:
+It can interact with the generated project through tools such as:
 
-* Read existing files
-* Write generated code
-* List project files
-* Inspect the current project directory
+* `read_file`
+* `write_file`
+* `list_files`
+* `get_current_directory`
 
-The coder processes implementation tasks iteratively instead of attempting to generate the complete project in a single LLM response.
+This allows the agent to inspect existing files before creating or modifying them.
 
-## Technology Stack
+### 4. Generated Project
 
-| Technology    | Purpose                                     |
-| ------------- | ------------------------------------------- |
-| Python        | Application and agent implementation        |
-| LangGraph     | Agent orchestration and workflow management |
-| LangChain     | LLM and agent abstractions                  |
-| Groq          | LLM inference                               |
-| Pydantic      | Structured output validation                |
-| python-dotenv | Environment configuration                   |
+The resulting files are created inside the generated project workspace.
+
+Example generated applications are included in this repository:
+
+* Calculator application
+* Todo application
+
+## Architecture
+
+```text
+                         User Prompt
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │  Planner Agent   │
+                    └────────┬─────────┘
+                             │
+                     Structured Plan
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │ Architect Agent  │
+                    └────────┬─────────┘
+                             │
+                    Implementation Tasks
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │   Coder Agent    │
+                    │   ReAct Agent    │
+                    └────────┬─────────┘
+                             │
+                      Tool Operations
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+         Read Files     Write Files     List Files
+              │              │              │
+              └──────────────┼──────────────┘
+                             │
+                             ▼
+                    Generated Application
+```
 
 ## Project Structure
 
@@ -125,100 +147,21 @@ app_builder/
 │
 ├── main.py
 ├── pyproject.toml
+├── uv.lock
 └── README.md
 ```
 
-## How the Workflow Works
+## Technology Stack
 
-Given a request such as:
-
-```text
-Create a simple todo web application with the ability
-to add, complete, and delete tasks.
-```
-
-The system performs the following steps:
-
-```text
-1. User submits requirement
-          ↓
-2. Planner creates structured project plan
-          ↓
-3. Architect decomposes plan into implementation tasks
-          ↓
-4. Coder processes each implementation task
-          ↓
-5. Coder uses file tools to create/update project files
-          ↓
-6. Generated project is produced
-```
-
-## Example Applications
-
-The repository includes example generated projects demonstrating the type of applications the system can produce.
-
-### Calculator
-
-A simple calculator application demonstrating basic UI and application logic generation.
-
-### Todo Application
-
-A todo application demonstrating multi-file project generation and feature-based implementation.
-
-## Design Decisions
-
-### Why multiple agents?
-
-A single prompt that asks an LLM to plan, architect, and implement an entire application can become difficult to control and debug.
-
-Separating these responsibilities allows each stage to focus on a specific software-development task.
-
-### Why LangGraph?
-
-LangGraph provides explicit workflow orchestration and state management, making the sequence of planning, architecture, and implementation easier to control.
-
-### Why structured outputs?
-
-The Planner and Architect return structured Pydantic models instead of relying only on free-form text.
-
-This allows downstream agents to work with predictable data structures.
-
-### Why tool-based code generation?
-
-The Coder interacts with the project through file tools instead of returning a large block of code as plain text.
-
-This makes the implementation process closer to an actual software-development workflow.
-
-## Security Considerations
-
-Generated files are restricted to the configured project workspace through path validation.
-
-The coding agent is provided with controlled file-operation tools rather than unrestricted system access.
-
-A future improvement is to execute generated applications inside an isolated sandbox before allowing them to run.
-
-## Limitations
-
-The current implementation is a research/prototype system and generated applications may require additional validation or manual refinement.
-
-Current limitations include:
-
-* Limited automated validation of generated applications
-* No isolated runtime sandbox
-* Limited evaluation benchmark
-* Limited support for different application frameworks
-
-## Future Improvements
-
-* Automated generated-code validation
-* Reviewer agent for code quality and requirement verification
-* Sandboxed execution of generated applications
-* Automated testing of generated projects
-* Evaluation benchmark for generation quality
-* Streaming agent progress
-* Web-based user interface
-* Support for additional application frameworks
-* Improved observability and tracing
+| Technology    | Purpose                              |
+| ------------- | ------------------------------------ |
+| Python        | Application and agent implementation |
+| LangGraph     | Agent workflow orchestration         |
+| LangChain     | LLM and agent abstractions           |
+| Groq          | LLM inference                        |
+| Pydantic      | Structured output validation         |
+| Python-dotenv | Environment configuration            |
+| uv            | Dependency management                |
 
 ## Getting Started
 
@@ -226,53 +169,137 @@ Current limitations include:
 
 * Python 3.11+
 * A Groq API key
-* `uv` or `pip`
+* Git
 
-### Installation
-
-Clone the repository:
+### Clone the Repository
 
 ```bash
-git clone https://github.com/ssrj25/ai-web-app-generator.git
-cd ai-web-app-generator/app_builder
+git clone https://github.com/ssrj25/AI-Web-App-Generator-.git
+cd AI-Web-App-Generator-/app_builder
 ```
 
-Create a virtual environment:
+### Install Dependencies
+
+Using `uv`:
 
 ```bash
-python -m venv .venv
+uv sync
 ```
 
-Activate it on Windows:
-
-```bash
-.venv\Scripts\activate
-```
-
-Install dependencies:
+Or using pip:
 
 ```bash
 pip install -e .
 ```
 
-Create an environment file:
+### Configure Environment Variables
 
-```text
-GROQ_API_KEY=your_api_key_here
+Create a `.env` file:
+
+```env
+GROQ_API_KEY=your_groq_api_key
 ```
 
-Run the application:
+Never commit your `.env` file or API keys to the repository.
+
+### Run the Application
 
 ```bash
 python main.py
 ```
 
-## Project Status
+## Example
 
-🚧 **Active development**
+A user can provide a requirement such as:
 
-The current version demonstrates the core multi-agent planning, architecture, and code-generation workflow. Automated validation, evaluation, and sandboxed execution are planned improvements.
+```text
+Build a todo application where users can create,
+update, delete, and mark tasks as completed.
+```
+
+The system processes the request through:
+
+```text
+Requirement
+    ↓
+Planner
+    ↓
+Architect
+    ↓
+Coder
+    ↓
+Generated Project
+```
+
+## Design Decisions
+
+### Why Multiple Agents?
+
+A single LLM call can generate code, but separating planning, architecture, and implementation makes the workflow easier to reason about, debug, and extend.
+
+### Why LangGraph?
+
+LangGraph provides an explicit graph-based approach for coordinating stateful agent workflows and makes the transitions between development stages visible.
+
+### Why Pydantic?
+
+Structured schemas make the output of planning and architecture stages predictable and easier to validate before passing information to the next agent.
+
+### Why Tool-Based Code Generation?
+
+The coding agent needs to inspect and modify multiple files. File-system tools provide a controlled interface between the agent and the generated project.
+
+### Why Path Validation?
+
+Generated file paths are validated so file operations remain inside the intended project workspace.
+
+## Current Limitations
+
+The current version is a prototype focused on demonstrating the multi-agent software-generation workflow.
+
+Current limitations include:
+
+* Generated applications are not yet automatically executed in a sandbox.
+* Automated code validation is limited.
+* The system currently focuses on a small set of project types.
+* LLM-generated code can still require manual review.
+* Production deployment and isolated execution are not yet implemented.
+
+## Future Improvements
+
+* Add automated code validation
+* Add a dedicated reviewer agent
+* Add automatic test generation
+* Add sandboxed execution of generated applications
+* Add retry and self-correction workflows
+* Add evaluation benchmarks
+* Add LangSmith-based observability
+* Add support for additional application frameworks
+* Add a web interface for interacting with the generator
+
+## Security Considerations
+
+Generated code should not be treated as trusted code.
+
+The project separates generated files into a dedicated workspace and validates file paths before performing file operations.
+
+Future versions should execute generated applications inside an isolated sandbox or container before allowing arbitrary commands to run.
+
+## Learning Goals
+
+This project was built to strengthen practical understanding of:
+
+* Agentic AI
+* LangGraph
+* LangChain
+* LLM tool calling
+* Structured LLM outputs
+* State-based workflows
+* Prompt engineering
+* Software architecture
+* AI-generated code validation
+* Secure file operations
 
 ## License
 
-This project is licensed under the MIT License.
+This project is intended for educational and portfolio purposes.
