@@ -1,1 +1,451 @@
+# System Architecture
+
+## Overview
+
+AI Web App Generator uses a multi-agent architecture to transform a natural-language application requirement into a structured implementation plan and generated project files.
+
+Instead of relying on a single LLM call to generate an entire application, the system separates the software development process into specialized stages.
+
+```text
+                         User Requirement
+                                │
+                                ▼
+                     ┌────────────────────┐
+                     │   Planner Agent    │
+                     │                    │
+                     │ Requirement        │
+                     │ → Project Plan     │
+                     └─────────┬──────────┘
+                               │
+                         Structured Plan
+                               │
+                               ▼
+                     ┌────────────────────┐
+                     │  Architect Agent   │
+                     │                    │
+                     │ Project Plan       │
+                     │ → Implementation    │
+                     │   Tasks             │
+                     └─────────┬──────────┘
+                               │
+                       Implementation Tasks
+                               │
+                               ▼
+                     ┌────────────────────┐
+                     │    Coder Agent     │
+                     │                    │
+                     │ ReAct + Tools      │
+                     └─────────┬──────────┘
+                               │
+                         Tool Operations
+                               │
+                ┌──────────────┼──────────────┐
+                │              │              │
+                ▼              ▼              ▼
+           read_file      write_file     list_files
+                │              │              │
+                └──────────────┼──────────────┘
+                               │
+                               ▼
+                    Generated Project Files
+```
+
+---
+
+## Agent Responsibilities
+
+### 1. Planner Agent
+
+The Planner is responsible for understanding the user's requirements and converting them into a structured project plan.
+
+### Input
+
+Natural-language application requirement.
+
+Example:
+
+```text
+Build a todo application where users can create,
+edit, delete, and mark tasks as completed.
+```
+
+### Output
+
+A structured project plan containing information such as:
+
+* Application name
+* Application description
+* Required features
+* Technology stack
+* Project structure
+* Required files
+
+The Planner does not write application code.
+
+Its responsibility is to determine **what needs to be built**.
+
+---
+
+### 2. Architect Agent
+
+The Architect receives the Planner's structured plan and converts it into implementation tasks.
+
+The Architect determines:
+
+* Which files need to be created
+* What each file should contain
+* Dependencies between implementation tasks
+* The order in which the application should be developed
+
+The Architect does not directly implement the application.
+
+Its responsibility is to determine **how the application should be implemented**.
+
+---
+
+### 3. Coder Agent
+
+The Coder is responsible for implementing the tasks created by the Architect.
+
+The Coder uses a ReAct-style tool-using workflow.
+
+Available file-system tools include:
+
+```text
+read_file
+write_file
+list_files
+get_current_directory
+```
+
+Before modifying an existing file, the agent can inspect the current contents.
+
+This allows the agent to work incrementally rather than generating the entire application in a single LLM response.
+
+---
+
+## State Management
+
+The application uses structured state to pass information between stages of the workflow.
+
+The major state models include:
+
+```text
+Plan
+ImplementationTask
+TaskPlan
+CoderState
+```
+
+The state contains the information required by each stage of the agent pipeline.
+
+The general flow is:
+
+```text
+User Input
+    │
+    ▼
+Planner State
+    │
+    ▼
+Plan
+    │
+    ▼
+Architect State
+    │
+    ▼
+TaskPlan
+    │
+    ▼
+Coder State
+    │
+    ▼
+Generated Files
+```
+
+---
+
+## Structured Outputs
+
+The Planner and Architect use Pydantic models to constrain LLM responses.
+
+This provides a predictable interface between agents.
+
+Instead of passing arbitrary text:
+
+```text
+LLM Response
+```
+
+the system expects structured data such as:
+
+```text
+Plan
+ImplementationTask
+TaskPlan
+```
+
+This reduces ambiguity between stages and makes the workflow easier to validate and debug.
+
+---
+
+## Tool Layer
+
+The Coder interacts with the generated project through controlled tools.
+
+### `read_file`
+
+Reads an existing project file.
+
+Used when the agent needs to understand the current implementation before making changes.
+
+### `write_file`
+
+Creates or updates a project file.
+
+Used to implement the tasks generated by the Architect.
+
+### `list_files`
+
+Lists files available inside the project workspace.
+
+Used by the agent to understand the current project structure.
+
+### `get_current_directory`
+
+Returns the current project workspace.
+
+Used to maintain awareness of the generated project's location.
+
+---
+
+## File-System Safety
+
+Generated project files are kept inside a dedicated project workspace.
+
+Before performing file operations, paths are validated to ensure that generated files remain inside the intended project directory.
+
+This prevents path traversal attempts such as:
+
+```text
+../../some_file
+../../../sensitive_file
+```
+
+from escaping the generated project workspace.
+
+Generated code should still be considered untrusted and should not be executed directly without additional isolation.
+
+---
+
+## LangGraph Workflow
+
+LangGraph is used to orchestrate the different stages of the agent workflow.
+
+Conceptually, the graph contains:
+
+```text
+START
+  │
+  ▼
+Planner
+  │
+  ▼
+Architect
+  │
+  ▼
+Coder
+  │
+  ▼
+END
+```
+
+Each stage receives the relevant state, performs its task, and passes the resulting state to the next stage.
+
+This makes the overall workflow explicit instead of hiding the entire application-generation process inside one large LLM call.
+
+---
+
+## Why a Multi-Agent Architecture?
+
+A single-agent approach could ask an LLM to:
+
+```text
+Understand requirements
+        ↓
+Design architecture
+        ↓
+Write code
+        ↓
+Generate files
+```
+
+However, this makes the system harder to debug and reason about.
+
+The multi-agent architecture separates responsibilities:
+
+```text
+Planner
+"What should we build?"
+
+       ↓
+
+Architect
+"How should we structure it?"
+
+       ↓
+
+Coder
+"How do we implement it?"
+```
+
+This separation makes individual stages easier to test, improve, and replace.
+
+---
+
+## Current Workflow
+
+The current implementation follows:
+
+```text
+1. User provides application requirements
+                ↓
+2. Planner generates structured project plan
+                ↓
+3. Architect generates implementation tasks
+                ↓
+4. Coder receives implementation tasks
+                ↓
+5. Coder uses file-system tools
+                ↓
+6. Project files are generated
+```
+
+---
+
+## Future Architecture
+
+The architecture can be extended with validation and review stages.
+
+```text
+                         User Requirement
+                                │
+                                ▼
+                            Planner
+                                │
+                                ▼
+                           Architect
+                                │
+                                ▼
+                             Coder
+                                │
+                                ▼
+                           Validator
+                                │
+                         ┌──────┴──────┐
+                         │             │
+                       PASS          FAIL
+                         │             │
+                         ▼             ▼
+                       Reviewer      Coder
+                         │
+                    ┌────┴────┐
+                    │         │
+                  PASS       FAIL
+                    │         │
+                    ▼         ▼
+                   END       Coder
+```
+
+Potential future validation stages include:
+
+* Syntax validation
+* Dependency validation
+* Automated tests
+* Build verification
+* Requirement coverage
+* Security checks
+* Generated-code review
+
+---
+
+## Design Goals
+
+The architecture is designed around the following principles:
+
+### Separation of Concerns
+
+Each agent has a specific responsibility instead of combining planning, architecture, and implementation into one step.
+
+### Structured Communication
+
+Pydantic models provide structured interfaces between agents.
+
+### Controlled Tool Access
+
+The coding agent interacts with the project through explicit tools rather than unrestricted file-system access.
+
+### Extensibility
+
+Additional agents such as a Validator or Reviewer can be added without redesigning the entire system.
+
+### Debuggability
+
+Individual stages can be inspected independently when generation fails.
+
+---
+
+## Key Engineering Trade-offs
+
+### Multiple Agents vs. Single Agent
+
+Multiple agents provide clearer responsibilities and easier debugging, but they introduce additional LLM calls and therefore increase latency and cost.
+
+### Structured Output vs. Free-form Output
+
+Structured output improves reliability between workflow stages, but schemas must be maintained as the system evolves.
+
+### Tool-based File Operations vs. Direct File Access
+
+Tools provide a controlled interface for the coding agent, but they require additional tool definitions and error handling.
+
+### LLM-generated Code vs. Deterministic Templates
+
+LLM generation provides flexibility for different application requirements, while templates provide greater predictability. The current system prioritizes flexibility.
+
+---
+
+## Security Considerations
+
+Generated code must be treated as untrusted.
+
+The current architecture focuses on restricting file operations to the generated project workspace.
+
+Arbitrary command execution should not be exposed to the coding agent without additional safeguards.
+
+A production version should execute generated applications inside an isolated environment such as a container or sandbox.
+
+---
+
+## Summary
+
+The system follows a staged software-development workflow:
+
+```text
+Natural Language
+      │
+      ▼
+   Planner
+      │
+      ▼
+  Architect
+      │
+      ▼
+    Coder
+      │
+      ▼
+Generated Application
+```
+
+This architecture demonstrates how LLMs can be combined with explicit state management, structured outputs, tool calling, and controlled file operations to build an agentic software-engineering workflow.
 
